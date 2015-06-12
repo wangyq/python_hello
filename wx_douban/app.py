@@ -145,23 +145,38 @@ def response_msg():
     #判断Content内容，如果等于"Hello2BizUser"，表明是一个新关注用户，如果不是，就返回电影标题，电影简介
     #和电影海报组成的图文信息
     #if msg["Content"] == "Hello2BizUser":
-    if msg["Content"] == "0":
-        echostr = textTpl % (
-            msg['FromUserName'], msg['ToUserName'], str(int(time.time())), msg['MsgType'],
-            u"欢迎关注豆瓣电影，输入电影名称即可快速查询电影讯息哦！")
-        return echostr
-    else:
-        Content = query_movie_info()
-        description = query_movie_details()
-        echostr = pictextTpl % (msg['FromUserName'], msg['ToUserName'], str(int(time.time())),
+    #if msg["Content"] == "0":
+    #    echostr = textTpl % (
+    #        msg['FromUserName'], msg['ToUserName'], str(int(time.time())), msg['MsgType'],
+    #        u"欢迎，输入电影名称即可快速查询电影讯息哦！")
+    #    return echostr
+    #else:
+
+    echostr = None
+    if not msg["Content"] == "0":  #不是显示菜单的命令
+        try :    #下面查询可能会出异常, 所以必须处理异常。否则会出现"微信无法提供服务"的情况。
+            Content = query_movie_info()
+            #description = query_movie_details()
+            if Content :          #查询到电影信息
+                description = query_movie_details()
+                echostr = pictextTpl % (msg['FromUserName'], msg['ToUserName'], str(int(time.time())),
                                 Content["subjects"][0]["title"], description,
                                 Content["subjects"][0]["images"]["large"], Content["subjects"][0]["alt"])
-        return echostr
+        except:
+            echostr = None
+            
+    if not echostr : #未查询到电影信息，或者是菜单命令。显示菜单。
+         echostr = textTpl % (
+            msg['FromUserName'], msg['ToUserName'], str(int(time.time())), msg['MsgType'],
+            u"欢迎垂询祥源建材!\nUrl:http://gzxyjc.sinaapp.com\nTel: +(86) 138 0855 2003\n输入电影名称即可快速查询电影讯息哦！")
+    
+    return echostr
  
 if __name__ == "__main__":
     # Interactive mode
     debug(True)
-    run(app,host='127.0.0.1', port=8080, reloader=True)
+    run(app,host='', port=8080, reloader=True)
+    #run(app,host='127.0.0.1', port=8080, reloader=True)
 else:
     # Mod WSGI launch
 #    import sae
