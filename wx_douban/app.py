@@ -42,7 +42,7 @@ def checkSignature():
     附微信Server请求的Url示例：http://yoursaeappid.sinaapp.com//?signature=730e3111ed7303fef52513c8733b431a0f933c7c
 &echostr=5853059253416844429&timestamp=1362713741&nonce=1362771581
     """
-    token = "gzxyjctoken"  # 你在微信公众平台上设置的TOKEN
+    token = "xxx"  # 你在微信公众平台上设置的TOKEN
     signature = request.GET.get('signature', None)  # 拼写不对害死人那，把signature写成singnature，直接导致怎么也认证不成功
     timestamp = request.GET.get('timestamp', None)
     nonce = request.GET.get('nonce', None)
@@ -73,7 +73,7 @@ def query_movie_info():
     二是如果Content中存在汉字，就需要先转码，才能进行请求
     """
     movieurlbase = "https://api.douban.com/v2/movie/search"  #更换为https
-    DOUBAN_APIKEY = "07b6b75bd184025e17242613748c071a"  # 这里需要填写你自己在豆瓣上申请的应用的APIKEY
+    DOUBAN_APIKEY = "xxx"  # 这里需要填写你自己在豆瓣上申请的应用的APIKEY
     movieinfo = parse_msg()
     searchkeys = urllib2.quote(movieinfo["Content"].encode("utf-8"))  # 如果Content中存在汉字，就需要先转码，才能进行请求
     url = '%s?q=%s&apikey=%s' % (movieurlbase, searchkeys, DOUBAN_APIKEY)
@@ -94,7 +94,7 @@ def query_movie_details():
     """
     movieurlbase = "https://api.douban.com/v2/movie/subject/"  #更换为https
     #DOUBAN_APIKEY = ""  # 这里需要填写你自己在豆瓣上申请的应用的APIKEY
-    DOUBAN_APIKEY = "07b6b75bd184025e17242613748c071a"  # 这里需要填写你自己在豆瓣上申请的应用的APIKEY
+    DOUBAN_APIKEY = "xxx"  # 这里需要填写你自己在豆瓣上申请的应用的APIKEY
     id = query_movie_info()
     url = '%s%s?apikey=%s' % (movieurlbase, id["subjects"][0]["id"], DOUBAN_APIKEY)
     resp = urllib2.urlopen(url)
