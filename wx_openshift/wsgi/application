@@ -1,0 +1,349 @@
+#! /usr/bin/env python
+# coding: UTF-8
+
+__author__ = 'siwind'
+
+import os, json, time,types,hashlib
+import inspect
+import xml.etree.ElementTree as ET
+import urllib2
+from collections import defaultdict
+
+
+#导入Bottle模块
+from bottle import Bottle, route, run, template, request, response,  post, get, abort,static_file,debug
+
+application = Bottle()
+app = application
+
+
+token = "gzxyjctoken"              #微信公众号上设置的token
+wx_handlers = defaultdict(list)
+
+
+@app.get('/')
+def index():
+    
+    if not checkSignature(request.query.signature,request.query.timestamp,request.query.nonce) :
+        return abort(403)
+        #return "WebChat: signature check error!"
+
+    return request.query.echostr
+
+@app.post('/')
+def index_post():
+    """
+    处理提交的POST请求。
+    """
+    #判断是否微信服务器提交数据请求
+    if not checkSignature(request.query.signature,request.query.timestamp,request.query.nonce) :
+        return abort(403)
+        #return "WebChat: signature check error!"
+
+    #拿到并解析数据
+    body = request.body.read() # 严重卡壳的地方，最后还是在Stack OverFlow上找到了答案
+    msg = parse_msg(body)
+    #print msg
+    reply = dispatch_process(msg)
+
+    response.content_type = 'application/xml'  #返回类型
+    return make_response(msg,reply)
+
+@app.error(403)
+def error403(error):
+    ERROR_PAGE_TEMPLATE = """
+    <!DOCTYPE html>
+    <html>
+        <head>
+            <meta charset="utf8" />
+            <title>Error: {{e.status}}</title>
+            <style type="text/css">
+              html {background-color: #eee; font-family: sans;}
+              body {background-color: #fff; border: 1px solid #ddd;
+                    padding: 15px; margin: 15px;}
+              pre {background-color: #eee; border: 1px solid #ddd; padding: 5px;}
+            </style>
+        </head>
+        <body>
+            <h1>Error: {{e.status}}</h1>
+            <p>微信机器人不可以通过 GET 方式直接进行访问。</p>
+            <p>想要使用本机器人，请在微信后台中将 URL 设置为 <pre>{{request.url}}</pre> 并将 Token 值设置正确。</p>
+            <p>如果你仍有疑问，请<a href="http://203club.com/archives/author/wangyq">阅读文档</a> , 联系作者: %s
+        </body>
+    </html>
+    """ % __author__
+    
+    return template(ERROR_PAGE_TEMPLATE, e=error, request=request)
+
+
+#======= dispatch process =========
+def dispatch_process(msg):
+    global wx_handlers
+
+    result = []
+    handlers = wx_handlers[msg['MsgType']] + wx_handlers['all']
+    if not handlers :
+        return result
+    try:
+        for handler, args_count in handlers:
+            if handler and callable(handler):   #判断函数调用是否正常
+                args = [msg, None][:args_count]
+                reply = handler(*args)
+                if reply:
+                    result.append(reply) 
+    except:
+        print "Excepion occur when call handler."
+        pass
+
+    return result
+
+#======= handle function =========
+def handle(msg_type, *arg):
+    """
+    """
+    def decorator(fn):
+        add_handler(fn, msg_type)
+        #def wrapper(*args,**kw):
+        #    return fn(*args,**kw)
+        #return wrapper
+
+    return decorator
+
+def handle_text(fn):
+    """
+    """
+    add_handler(fn,'text') 
+
+def add_handler(func, msg_type='all'):
+    """
+    Add a handler function for messages of given type.
+    """
+    global wx_handlers
+
+    theMsgType = ['event',#'subscribe', 'unsubscribe', 'click',  'view',  # event
+                     'text', 'image', 'link', 'location', 'voice']
+
+    if not wx_handlers :   #添加默认值
+        wx_handlers = dict((k,[]) for k in theMsgType)
+        wx_handlers['all'] = []
+
+    if not (msg_type in theMsgType or msg_type=='all') :
+        raise ValueError("message type of '{}' is not supported.".format(msg_type))
+    if not callable(func):
+        raise ValueError("{} is not callable".format(func))
+
+    if not msg_type in wx_handlers : #先判断是否为空
+        wx_handlers[msg_type] = []
+
+    wx_handlers[msg_type].append((func, len(inspect.getargspec(func).args)))
+ 
+#======= util =====================
+def checkSignature(signature, timestamp,nonce):
+    """
+    检查签名来验证微信服务器
+    """
+    global token
+    tmpList = [token, timestamp, nonce]
+    tmpList.sort()
+    tmpstr = "%s%s%s" % tuple(tmpList)
+    hashstr = hashlib.sha1(tmpstr).hexdigest()
+    return hashstr == signature
+
+def parse_msg(xml):
+    """
+    这里是用来解析微信Server Post过来的XML数据的，取出各字段对应的值，以备后面的代码调用，也可用lxml等模块。
+    """
+
+    if not xml:
+        return
+
+    root = ET.fromstring(xml)
+    msg = defaultdict(str)   #{}
+    #msg["raw"] = xml
+    for child in root:
+        msg[child.tag] = child.text
+    return msg
+
+ 
+#======= dispatch process =========
+def make_response(msg,reply):
+    """
+    reply 是一个列表 : ['hell', {'xml':'<xml>xxx</xml>},xxx], 元素为字符串或者字典
+    """
+    str = ''
+    res_xml = ''
+    #print "reply = " , reply
+
+    for item in reply :    #item 为空未判断
+        if type(item) == types.StringType :
+            str += item
+        #elif type(item) == type(Dict())  #types.Dict :
+        #    if item['xml'] :
+        #        res_xml += item['xml']   #取元组的第二个值
+        else :
+            if item['xml'] :
+                res_xml += item['xml']
+            pass
+    
+    if str : #文字消息非空
+        res_xml = reply_text(msg,str) + res_xml
+
+    return res_xml
+
+#======= reply mesg =====================
+def reply_text(msg,content):
+    #设置返回数据模板
+    #纯文本格式
+    template = """<xml>
+             <ToUserName><![CDATA[%s]]></ToUserName>
+             <FromUserName><![CDATA[%s]]></FromUserName>
+             <CreateTime>%s</CreateTime>
+             <MsgType><![CDATA[text]]></MsgType>
+             <Content><![CDATA[%s]]></Content>
+             <FuncFlag>0</FuncFlag>
+             </xml>"""
+    return template % ( msg['FromUserName'], msg['ToUserName'], str(int(time.time())), content )
+
+def reply_news(msg,content):
+    #content 是字典
+    tpl_artical = """<xml>
+                <ToUserName><![CDATA[%s]]></ToUserName>
+                <FromUserName><![CDATA[%s]]></FromUserName>
+                <CreateTime>%s</CreateTime>
+                <MsgType><![CDATA[news]]></MsgType>
+                <ArticleCount>%s</ArticleCount>
+                <Articles>"""
+    tpl_item = """<item>
+                <Title><![CDATA[%s]]></Title>
+                <Description><![CDATA[%s]]></Description>
+                <PicUrl><![CDATA[%s]]></PicUrl>
+                <Url><![CDATA[%s]]></Url>
+                </item>"""
+    tpl_end_artical = "</Articles></xml>"
+
+    #变量千万不能和关键字重名
+    str_res = tpl_artical % (msg['FromUserName'], msg['ToUserName'], str(int(time.time())), str(len(content)))
+    for m in content :
+        str_res += tpl_item % (m['Title'],m['Description'],m['PicUrl'],m['Url'])
+
+    str_res += tpl_end_artical
+
+    return {'xml':str_res}
+    #return template % ( msg['FromUserName'], msg['ToUserName'], str(int(time.time())), 
+    #            content['Title'],content['Desc'], content['PicUrl'],content['Url'])
+
+
+#======= Handle for mesg =====================
+def query_movie_info(value,start=0,count=1):
+    """
+    这里使用豆瓣的电影search API，通过关键字查询电影信息，这里的关键点是，一是关键字取XML中的Content值，
+    二是如果Content中存在汉字，就需要先转码，才能进行请求
+    """
+    movieurlbase = "https://api.douban.com/v2/movie/search"  #更换为https
+    DOUBAN_APIKEY = "xxx"  # 这里需要填写你自己在豆瓣上申请的应用的APIKEY
+   
+    movie = defaultdict(list) #{}
+    movie['total'] = 0
+    if not value :
+        return movie
+    try : 
+        searchkeys = urllib2.quote(value.encode("utf-8"))  # 如果Content中存在汉字，就需要先转码，才能进行请求
+        #searchkeys = urllib2.quote(value)  # 如果Content中存在汉字，就需要先转码，才能进行请求
+        url = '%s?q=%s&start=%s&count=%s' % (movieurlbase, searchkeys,start,count)
+        #url = '%s?q=%s&apikey=%s' % (movieurlbase, searchkeys, DOUBAN_APIKEY)
+        # return "<p>{'url': %s}</p>" % url
+        # url = '%s%s?apikey=%s' % (movieurlbase, id["Content"], DOUBAN_APIKEY)
+        # resp = requests.get(url=url, headers=header)
+        
+        resp = urllib2.urlopen(url)
+        movie = json.loads(resp.read())
+        # return "<p>{'movie': %s}</p>" % movie
+        # info = movie["subjects"][0]["title"] + movie["subjects"][0]["alt"]
+        # info = movie['title'] + ': ' + ''.join(movie['summary'])
+    except Exception as inst:
+        movie['total'] = 0
+        print "call movie_info error!"
+        print(type(inst))
+        print(inst.args)
+        print(inst)
+        pass
+    return movie
+    # return info
+ 
+def query_movie_details(id_movie):
+    """
+    这里使用豆瓣的电影subject API，通过在query_movie_info()中拿到的电影ID，来获取电影的summary。
+    """
+    description = ""
+    if not id_movie:
+        return description
+    
+    movieurlbase = "https://api.douban.com/v2/movie/subject/"  #更换为https
+    #DOUBAN_APIKEY = ""  # 这里需要填写你自己在豆瓣上申请的应用的APIKEY
+    DOUBAN_APIKEY = "xxx"  # 这里需要填写你自己在豆瓣上申请的应用的APIKEY
+    
+    #url = '%s%s?apikey=%s' % (movieurlbase, id_movie, DOUBAN_APIKEY)
+    url = '%s%s' % (movieurlbase, id_movie)
+
+    try :
+        resp = urllib2.urlopen(url)
+        description = json.loads(resp.read())
+        description = ''.join(description['summary'])
+    except Exception as inst:
+        print "call movie_detail error"
+        print(type(inst))
+        print(inst.args)
+        print(inst)
+        pass
+    return description
+
+#====== handle of client's reques ====
+@handle('event')
+def doEvent(msg):
+    event = msg['Event']
+    #print "call event."
+    if event == 'subscribe' :
+        return "欢迎垂询祥源建材!\nUrl:http://gzxyjc.sinaapp.com\nTel: +(86) 138 0855 2003\n输入电影名称即可快速查询电影讯息哦！"
+
+
+@handle('text')
+def hello(msg):
+    #print "hello world!"
+
+    
+    try :
+        max = 3
+        movies = query_movie_info(msg['Content'],0,max)
+
+        #raise ValueError(movies);
+    
+        count = int(movies['total'])   #total 查询出的是全部电影结果数目. 使用'count'也不对,查询失败时'count'还是20
+        count = count if count < max else max   #
+   
+        content = []  #dict()   #
+        for i in range(0,count) :
+            m = {}  #dict()
+            m['Title'] = movies['subjects'][i]['title']
+            m['id'] = movies['subjects'][i]['id'] 
+            m['Description'] = query_movie_details(m['id'])
+            m['PicUrl'] = movies['subjects'][i]['images']['large'] if i==0 else movies['subjects'][i]['images']['small']
+            m['Url'] = movies['subjects'][i]['alt']
+            content.append(m)
+
+        if content :
+            #print content
+            return reply_news(msg,content)
+    
+    except Exception as inst:
+        print "call hello() error!"
+        print(type(inst))
+        print(inst.args)
+        print(inst)
+        pass
+
+    #print msg
+ 
+    return "欢迎垂询祥源建材!\nUrl:http://gzxyjc.sinaapp.com\nTel: +(86) 138 0855 2003\n输入电影名称即可快速查询电影讯息哦！"
+    pass
+
+
