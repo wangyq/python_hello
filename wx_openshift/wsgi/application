@@ -17,7 +17,10 @@ application = Bottle()
 app = application
 
 
-token = "gzxyjctoken"              #微信公众号上设置的token
+token = "xxx"              #微信公众号上设置的token
+DOUBAN_APIKEY = "xxx"
+
+
 wx_handlers = defaultdict(list)
 
 
@@ -233,15 +236,15 @@ def reply_news(msg,content):
     #            content['Title'],content['Desc'], content['PicUrl'],content['Url'])
 
 
-#======= Handle for mesg =====================
+#======= Handle for message =====================
 def query_movie_info(value,start=0,count=1):
     """
     这里使用豆瓣的电影search API，通过关键字查询电影信息，这里的关键点是，一是关键字取XML中的Content值，
     二是如果Content中存在汉字，就需要先转码，才能进行请求
     """
+    global DOUBAN_APIKEY # 这里需要填写你自己在豆瓣上申请的应用的APIKEY
     movieurlbase = "https://api.douban.com/v2/movie/search"  #更换为https
-    DOUBAN_APIKEY = "xxx"  # 这里需要填写你自己在豆瓣上申请的应用的APIKEY
-   
+    
     movie = defaultdict(list) #{}
     movie['total'] = 0
     if not value :
@@ -249,8 +252,8 @@ def query_movie_info(value,start=0,count=1):
     try : 
         searchkeys = urllib2.quote(value.encode("utf-8"))  # 如果Content中存在汉字，就需要先转码，才能进行请求
         #searchkeys = urllib2.quote(value)  # 如果Content中存在汉字，就需要先转码，才能进行请求
-        url = '%s?q=%s&start=%s&count=%s' % (movieurlbase, searchkeys,start,count)
-        #url = '%s?q=%s&apikey=%s' % (movieurlbase, searchkeys, DOUBAN_APIKEY)
+        #url = '%s?q=%s&start=%s&count=%s' % (movieurlbase, searchkeys,start,count)
+        url = '%s?q=%s&start=%s&count=%s&apikey=%s' % (movieurlbase, searchkeys, start,count,DOUBAN_APIKEY)
         # return "<p>{'url': %s}</p>" % url
         # url = '%s%s?apikey=%s' % (movieurlbase, id["Content"], DOUBAN_APIKEY)
         # resp = requests.get(url=url, headers=header)
@@ -278,12 +281,11 @@ def query_movie_details(id_movie):
     if not id_movie:
         return description
     
+    global DOUBAN_APIKEY # 这里需要填写你自己在豆瓣上申请的应用的APIKEY
     movieurlbase = "https://api.douban.com/v2/movie/subject/"  #更换为https
-    #DOUBAN_APIKEY = ""  # 这里需要填写你自己在豆瓣上申请的应用的APIKEY
-    DOUBAN_APIKEY = "xxx"  # 这里需要填写你自己在豆瓣上申请的应用的APIKEY
-    
-    #url = '%s%s?apikey=%s' % (movieurlbase, id_movie, DOUBAN_APIKEY)
-    url = '%s%s' % (movieurlbase, id_movie)
+        
+    url = '%s%s?apikey=%s' % (movieurlbase, id_movie, DOUBAN_APIKEY)
+    #url = '%s%s' % (movieurlbase, id_movie)
 
     try :
         resp = urllib2.urlopen(url)
@@ -312,10 +314,8 @@ def hello(msg):
 
     
     try :
-        max = 3
+        max = 5
         movies = query_movie_info(msg['Content'],0,max)
-
-        #raise ValueError(movies);
     
         count = int(movies['total'])   #total 查询出的是全部电影结果数目. 使用'count'也不对,查询失败时'count'还是20
         count = count if count < max else max   #
@@ -325,7 +325,7 @@ def hello(msg):
             m = {}  #dict()
             m['Title'] = movies['subjects'][i]['title']
             m['id'] = movies['subjects'][i]['id'] 
-            m['Description'] = query_movie_details(m['id'])
+            m['Description'] = query_movie_details(m['id']) if i==0 else ""  #减少查询, 加快速度
             m['PicUrl'] = movies['subjects'][i]['images']['large'] if i==0 else movies['subjects'][i]['images']['small']
             m['Url'] = movies['subjects'][i]['alt']
             content.append(m)
