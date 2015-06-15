@@ -1,6 +1,12 @@
 #! /usr/bin/env python
-# coding: UTF-8
-__author__ = 'siwind'
+# -*- coding: utf-8 -*-
+"""
+This is a demo
+"""
+__author__ = 'yinqingwang@163.com'
+__version__ = '0.10'
+__license__ = 'MIT'
+
 
 import os
 import types

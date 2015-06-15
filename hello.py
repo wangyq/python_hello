@@ -1,4 +1,12 @@
-#!/usr/bin/python
+#! /usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+This is a hello demo and must run by python 3.x
+"""
+__author__ = 'yinqingwang@163.com'
+__version__ = '0.10'
+__license__ = 'MIT'
+
 import sys
 
 def josephus(n,k):
