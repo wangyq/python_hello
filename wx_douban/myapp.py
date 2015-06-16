@@ -296,7 +296,7 @@ def doEvent(msg):
     event = msg['Event']
     #print "call event."
     if event == 'subscribe' :
-        return "欢迎垂询祥源建材!\nUrl:http://gzxyjc.sinaapp.com\nTel: +(86) 138 0855 2003\n输入电影名称即可快速查询电影讯息哦！"
+        return "欢迎垂询祥源建材!\nUrl:http://gzxyjc.sinaapp.com\nTel: +(86) 139 0855 2003\n输入电影名称即可快速查询电影讯息哦！"
 
 
 @handle('text')
@@ -329,7 +329,7 @@ def hello(msg):
 
     #print msg
  
-    return "欢迎垂询祥源建材!\nUrl:http://gzxyjc.sinaapp.com\nTel: +(86) 138 0855 2003\n输入电影名称即可快速查询电影讯息哦！"
+    return "欢迎垂询祥源建材!\nUrl:http://gzxyjc.sinaapp.com\nTel: +(86) 139 0855 2003\n输入电影名称即可快速查询电影讯息哦！"
     pass
 
 
