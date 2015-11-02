@@ -35,5 +35,5 @@ n2.send(None)   # start it so it pauses on the first yield
 ping(n2)
 t2 = datetime.datetime.now() 
  
-d = (t2-t1).microseconds 
+d = (t2-t1).microseconds /1000 
 print("%d ms" %d)
