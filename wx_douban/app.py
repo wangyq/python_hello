@@ -168,7 +168,7 @@ def response_msg():
     if not echostr : #未查询到电影信息，或者是菜单命令。显示菜单。
          echostr = textTpl % (
             msg['FromUserName'], msg['ToUserName'], str(int(time.time())), msg['MsgType'],
-            u"欢迎垂询祥源建材!\nUrl:http://gzxyjc.sinaapp.com\nTel: +(86) 138 0855 2003\n输入电影名称即可快速查询电影讯息哦！")
+            u"欢迎垂询祥源建材!\nUrl:http://gzxyjc.sinaapp.com\nTel: +(86) 139 0855 2003\n输入电影名称即可快速查询电影讯息哦！")
     
     return echostr
  
